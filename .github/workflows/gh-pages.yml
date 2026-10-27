@@ -54,7 +54,6 @@ jobs:
         run: node --test tests/units.test.mjs
       - uses: pnpm/action-setup@v4
         with:
-          version: 8
           run_install: false
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
