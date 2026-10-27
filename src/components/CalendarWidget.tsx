@@ -1,3 +1,4 @@
+import { METERS_PER_MILE, displayActivityTime } from '../core/units';
 import { useMemo, useState } from 'react';
 import type { Activity } from '../types';
 import { formatDistance } from '../hooks/useActivities';
@@ -106,7 +107,7 @@ export function CalendarWidget({
       <div className="mb-3 flex items-center gap-2 text-xs text-[var(--color-muted)]">
         <span className="mr-auto">
           {monthActivities.length} {zh ? '次活动' : 'activities'} ·{' '}
-          {formatDistance(distance)} km
+          {formatDistance(distance)} mi
         </span>
         <button
           className="rounded px-2 hover:bg-[var(--color-bg)]"
@@ -137,14 +138,15 @@ export function CalendarWidget({
           if (number < 1 || number > daysInMonth)
             return <span key={i} className="h-9" />;
           const list = byDay.get(number) ?? [];
-          const km = list.reduce((sum, a) => sum + a.distance, 0) / 1000;
+          const mi =
+            list.reduce((sum, a) => sum + a.distance, 0) / METERS_PER_MILE;
           return (
             <button
               key={i}
               type="button"
               disabled={!list.length}
               aria-pressed={day === number}
-              aria-label={`${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(number).padStart(2, '0')} · ${list.length} ${zh ? '次活动' : 'activities'} · ${km.toFixed(1)} km`}
+              aria-label={`${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(number).padStart(2, '0')} · ${list.length} ${zh ? '次活动' : 'activities'} · ${mi.toFixed(1)} mi`}
               className={`calendar-day relative flex h-9 flex-col items-center justify-center rounded-md text-xs ${list.length ? 'bg-[var(--color-accent)]/15 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/30' : 'text-[var(--color-muted)]'} ${day === number ? 'ring-2 ring-[var(--color-accent)]' : ''}`}
               onClick={() => {
                 setDay(number);
@@ -154,7 +156,7 @@ export function CalendarWidget({
               <span>{number}</span>
               {list.length > 0 && (
                 <span className="text-[9px] leading-tight">
-                  {km.toFixed(1)}k
+                  {mi.toFixed(1)}mi
                 </span>
               )}
             </button>
@@ -175,10 +177,14 @@ export function CalendarWidget({
               onClick={() => onSelectActivity(activity)}
             >
               <span className="min-w-0 truncate">
-                {activity.start_date_local.slice(11, 16)} · {activity.name}
+                {displayActivityTime(
+                  activity.start_date_local,
+                  activity.date_precision
+                )}{' '}
+                · {activity.name}
               </span>
               <span className="shrink-0 font-mono">
-                {(activity.distance / 1000).toFixed(1)} km
+                {(activity.distance / METERS_PER_MILE).toFixed(1)} mi
               </span>
             </button>
           ))}

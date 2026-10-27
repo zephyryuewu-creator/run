@@ -16,9 +16,9 @@ const getBasePath = () => {
 
 const data: ISiteMetadataResult = {
   siteTitle: 'Running Page',
-  siteUrl: 'https://yihong.run',
-  logo: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQTtc69JxHNcmN1ETpMUX4dozAgAN6iPjWalQ&usqp=CAU',
-  description: 'Personal site and blog',
+  siteUrl: 'https://zephyryuewu-creator.github.io/run/',
+  logo: '',
+  description: 'Yue Wu running journal',
   navLinks: [
     {
       name: 'Summary',
@@ -26,7 +26,7 @@ const data: ISiteMetadataResult = {
     },
     {
       name: 'Blog',
-      url: 'https://github.com/yihong0618/gitblog',
+      url: 'https://github.com/zephyryuewu-creator/run',
     },
     {
       name: 'About',

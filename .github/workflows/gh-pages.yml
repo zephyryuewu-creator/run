@@ -1,108 +1,73 @@
 name: Publish GitHub Pages
 
-# Controls when the action will run.
 on:
   workflow_dispatch:
-    inputs:
-      save_data_in_github_cache:
-        required: true
-        type: boolean
-        default: false
-      data_cache_prefix:
-        required: true
-        type: string
-        default: track_data
   workflow_call:
-    inputs:
-      save_data_in_github_cache:
-        required: true
-        type: boolean
-        default: false
-      data_cache_prefix:
-        required: true
-        type: string
-        default: track_data
+  push:
+    branches: [master]
+    paths:
+      - Running_Log_EN.xlsx
+      - scripts/import_excel.py
+      - scripts/tests/**
+      - tests/**
+      - src/**
+      - config.yml
+      - package.json
+      - pnpm-lock.yaml
+      - .github/workflows/gh-pages.yml
 
-# Allow one concurrent deployment
 concurrency:
-  group: 'pages'
+  group: pages
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
-  # Single deploy job since we're just deploying
   deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      pages: write
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
         with:
-          # if your default branches is not master, please change it here
           ref: master
-          fetch-depth: 0
           persist-credentials: false
-
-      - name: Cache Data Files
-        if: inputs.save_data_in_github_cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            activities
-            assets
-            GPX_OUT
-            TCX_OUT
-            FIT_OUT
-            Workouts
-            run_page/data.db
-            src/static/activities.json
-            imported.json
-          key: ${{ inputs.data_cache_prefix }}-${{ github.sha }}-${{ github.run_id }}
-          restore-keys: |
-            ${{ inputs.data_cache_prefix }}-${{ github.sha }}-
-            ${{ inputs.data_cache_prefix }}-
-
-      - name: Setup Node.js environment
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-
-      - uses: pnpm/action-setup@v3
-        name: Install pnpm
+          node-version: '24'
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          version: 8
+          python-version: '3.12'
+      - name: Install workbook reader
+        run: python -m pip install openpyxl==3.1.5
+      - name: Verify Excel conversion
+        run: python -m unittest discover -s scripts/tests -v
+      - name: Import personal workbook
+        run: python scripts/import_excel.py Running_Log_EN.xlsx
+      - name: Verify mile and date formatting
+        run: node --test tests/units.test.mjs
+      - uses: pnpm/action-setup@v4
+        with:
           run_install: false
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-      - uses: actions/cache@v3
-        name: Setup pnpm cache
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
       - name: Build
         env:
-          REPO_NAME: ${{ github.event.repository.name }}
+          PATH_PREFIX: /${{ github.event.repository.name }}
           VITE_MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
-        run: PATH_PREFIX=/$REPO_NAME pnpm build
-
-      - name: Upload artifact
+        run: pnpm build
+      - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload dist repository
           name: pages-artifact
-          path: './dist'
-      - name: Deploy to GitHub Pages
+          path: ./dist
+      - name: Publish site
         id: deployment
         uses: actions/deploy-pages@v4
         with:

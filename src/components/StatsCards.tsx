@@ -1,3 +1,4 @@
+import { METERS_PER_MILE, formatGoal, goalProgress } from '../core/units';
 import { memo, useState } from 'react';
 import type { Activity, SportFilter } from '../types';
 import { formatDistance, parseMovingTime } from '../hooks/useActivities';
@@ -21,10 +22,13 @@ export const StatsCards = memo(function StatsCards({
 }: StatsCardsProps) {
   const { t, locale } = useLocale();
   const goal = GOALS[filter] ?? DEFAULT_GOAL;
-  // For Gym, goals are in minutes; for others, goals are in km → convert to meters
-  const yearGoalMeters = goal.unit === 'time' ? 0 : goal.yearly * 1000;
-  const monthGoalMeters = goal.unit === 'time' ? 0 : goal.monthly * 1000;
-  const weekGoalMeters = goal.unit === 'time' ? 0 : goal.weekly * 1000;
+  // For Gym, goals are in minutes; for others, goals are in mi → convert to meters
+  const yearGoalMeters =
+    goal.unit === 'time' ? 0 : goal.yearly * METERS_PER_MILE;
+  const monthGoalMeters =
+    goal.unit === 'time' ? 0 : goal.monthly * METERS_PER_MILE;
+  const weekGoalMeters =
+    goal.unit === 'time' ? 0 : goal.weekly * METERS_PER_MILE;
   const yearGoalMins = goal.unit === 'time' ? goal.yearly : 0;
   const monthGoalMins = goal.unit === 'time' ? goal.monthly : 0;
   const weekGoalMins = goal.unit === 'time' ? goal.weekly : 0;
@@ -350,14 +354,14 @@ export const StatsCards = memo(function StatsCards({
             /{' '}
             {goal.unit === 'time'
               ? `${Math.round(yearGoalMins / 60)}h`
-              : `${goal.yearly} km`}
+              : `${formatGoal(goal.yearly)} mi`}
           </span>
         </p>
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--color-border)]">
           <div
             className="h-full rounded-full bg-[var(--color-accent)] transition-all"
             style={{
-              width: `${Math.min(goal.unit === 'time' ? (yearSeconds / (yearGoalMins * 60)) * 100 : (yearDistance / yearGoalMeters) * 100, 100)}%`,
+              width: `${goalProgress(goal.unit === 'time' ? yearSeconds : yearDistance, goal.unit === 'time' ? yearGoalMins * 60 : yearGoalMeters)}%`,
             }}
           />
         </div>
@@ -384,9 +388,11 @@ export const StatsCards = memo(function StatsCards({
           className={`mt-1.5 text-xs ${yearDiff >= 0 ? 'text-emerald-500' : 'text-red-400'}`}
         >
           {yearDiff >= 0 ? '↗' : '↘'}{' '}
-          {goal.unit === 'time'
-            ? formatHours(Math.abs(yearDiff))
-            : `${formatDistance(Math.abs(yearDiff))} km`}{' '}
+          {!lastYearActivities.length
+            ? '--'
+            : goal.unit === 'time'
+              ? formatHours(Math.abs(yearDiff))
+              : `${formatDistance(Math.abs(yearDiff))} mi`}{' '}
           {t('vsLastYear')}
         </p>
       </div>
@@ -417,14 +423,14 @@ export const StatsCards = memo(function StatsCards({
             /{' '}
             {goal.unit === 'time'
               ? `${Math.round(monthGoalMins / 60)}h`
-              : `${goal.monthly} km`}
+              : `${formatGoal(goal.monthly)} mi`}
           </span>
         </p>
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--color-border)]">
           <div
             className="h-full rounded-full bg-[var(--color-accent)] transition-all"
             style={{
-              width: `${Math.min(goal.unit === 'time' ? (monthSeconds / (monthGoalMins * 60)) * 100 : (monthDistance / monthGoalMeters) * 100, 100)}%`,
+              width: `${goalProgress(goal.unit === 'time' ? monthSeconds : monthDistance, goal.unit === 'time' ? monthGoalMins * 60 : monthGoalMeters)}%`,
             }}
           />
         </div>
@@ -451,9 +457,11 @@ export const StatsCards = memo(function StatsCards({
           className={`mt-1.5 text-xs ${monthDiff >= 0 ? 'text-emerald-500' : 'text-red-400'}`}
         >
           {monthDiff >= 0 ? '↗' : '↘'}{' '}
-          {goal.unit === 'time'
-            ? formatHours(Math.abs(monthDiff))
-            : `${formatDistance(Math.abs(monthDiff))} km`}{' '}
+          {!lastMonthActivities.length
+            ? '--'
+            : goal.unit === 'time'
+              ? formatHours(Math.abs(monthDiff))
+              : `${formatDistance(Math.abs(monthDiff))} mi`}{' '}
           {t('vsLastMonth')}
         </p>
       </div>
@@ -481,14 +489,17 @@ export const StatsCards = memo(function StatsCards({
             ? formatHours(weekSeconds)
             : formatDistance(weekDistance)}
           <span className="ml-1 text-base font-normal text-[var(--color-muted)]">
-            / {goal.unit === 'time' ? `${weekGoalMins}m` : `${goal.weekly} km`}
+            /{' '}
+            {goal.unit === 'time'
+              ? `${weekGoalMins}m`
+              : `${formatGoal(goal.weekly)} mi`}
           </span>
         </p>
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--color-border)]">
           <div
             className="h-full rounded-full bg-[var(--color-accent)] transition-all"
             style={{
-              width: `${Math.min(goal.unit === 'time' ? (weekSeconds / (weekGoalMins * 60)) * 100 : (weekDistance / weekGoalMeters) * 100, 100)}%`,
+              width: `${goalProgress(goal.unit === 'time' ? weekSeconds : weekDistance, goal.unit === 'time' ? weekGoalMins * 60 : weekGoalMeters)}%`,
             }}
           />
         </div>
@@ -515,9 +526,11 @@ export const StatsCards = memo(function StatsCards({
           className={`mt-1.5 text-xs ${weekDiff >= 0 ? 'text-emerald-500' : 'text-red-400'}`}
         >
           {weekDiff >= 0 ? '↗' : '↘'}{' '}
-          {goal.unit === 'time'
-            ? formatHours(Math.abs(weekDiff))
-            : `${formatDistance(Math.abs(weekDiff))} km`}{' '}
+          {!lastWeekActivities.length
+            ? '--'
+            : goal.unit === 'time'
+              ? formatHours(Math.abs(weekDiff))
+              : `${formatDistance(Math.abs(weekDiff))} mi`}{' '}
           {locale === 'zh' ? 'vs 上周同期' : 'vs last week'}
         </p>
       </div>

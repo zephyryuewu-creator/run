@@ -1,5 +1,10 @@
 export interface Activity {
   run_id: number;
+  record_id?: string;
+  date_precision?: 'day' | 'minute';
+  workout_details?: string | null;
+  notes?: string | null;
+  running_steps?: number | null;
   name: string;
   distance: number; // meters
   moving_time: string; // "H:MM:SS"

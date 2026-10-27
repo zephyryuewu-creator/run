@@ -1,0 +1,20 @@
+{
+  "version": "1.1",
+  "input_file": "Running_Log_EN.xlsx",
+  "input_sha256": "ec5d169cb1a9baac991d0f58dd0d9d237c1fac069e25df51865c0267ebbca78d",
+  "timezone": "America/New_York",
+  "input_distance_unit": "mi",
+  "internal_distance_unit": "m",
+  "display_distance_unit": "mi",
+  "record_count": 2,
+  "distance_miles": 20.7,
+  "duration_seconds": 10560,
+  "weekly_check_ins": [
+    {
+      "week_start": "2026-10-19",
+      "week_end": "2026-10-25",
+      "status": "In progress",
+      "notes": "Two actual runs entered (Oct 22 and Oct 25). Weekly completeness has not been confirmed."
+    }
+  ]
+}
