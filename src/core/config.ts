@@ -9,7 +9,7 @@ export interface GoalConfig {
   yearly: number;
   monthly: number;
   weekly: number;
-  /** 'distance' (km) | 'time' (minutes) */
+  /** 'distance' (mi) | 'time' (minutes) */
   unit: 'distance' | 'time';
 }
 
@@ -30,9 +30,9 @@ export const DEFAULT_THEME: 'light' | 'dark' | 'system' =
 export const THEME_PRESET: string = config.theme_preset ?? 'default';
 export const GOALS: Record<string, GoalConfig> = config.goals ?? {};
 export const DEFAULT_GOAL: GoalConfig = GOALS.all ?? {
-  yearly: 2000,
-  monthly: 150,
-  weekly: 35,
+  yearly: 0,
+  monthly: 0,
+  weekly: 0,
   unit: 'distance',
 };
 export const AVATAR: string = config.avatar ?? '';

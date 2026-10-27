@@ -1,3 +1,4 @@
+import { METERS_PER_MILE, displayActivityDate } from '../core/units';
 import { useState, useMemo } from 'react';
 import type { Activity, SportFilter } from '../types';
 import { formatDuration, formatPace } from '../hooks/useActivities';
@@ -38,14 +39,14 @@ export function ActivityLog({
 
   const sorted = useMemo(() => {
     const filtered = activities.filter((a) => {
-      const km = a.distance / 1000;
+      const mi = a.distance / METERS_PER_MILE;
       switch (distFilter) {
         case '10':
-          return km >= 10;
+          return mi >= 10;
         case '20':
-          return km >= 20;
+          return mi >= 20;
         case '40':
-          return km >= 40;
+          return mi >= 40;
         default:
           return true;
       }
@@ -135,9 +136,9 @@ export function ActivityLog({
         {(
           [
             ['all', t('all')],
-            ['10', '10km+'],
-            ['20', '20km+'],
-            ['40', '40km+'],
+            ['10', '10mi+'],
+            ['20', '20mi+'],
+            ['40', '40mi+'],
           ] as [DistanceFilter, string][]
         ).map(([val, label]) => (
           <button
@@ -212,7 +213,7 @@ export function ActivityLog({
                 }`}
               >
                 <td className="py-3 text-[var(--color-muted)]">
-                  {a.start_date_local.slice(0, 16).replace('T', ' ')}
+                  {displayActivityDate(a.start_date_local, a.date_precision)}
                 </td>
                 <td className="py-3">
                   <span className="text-[var(--color-muted)]">
@@ -221,9 +222,9 @@ export function ActivityLog({
                 </td>
                 <td className="py-3">{a.name || t('run')}</td>
                 <td className="py-3 font-mono font-medium">
-                  {(a.distance / 1000).toFixed(1)}
+                  {(a.distance / METERS_PER_MILE).toFixed(1)}
                   <span className="ml-1 text-xs font-normal text-[var(--color-muted)]">
-                    km
+                    mi
                   </span>
                 </td>
                 <td className="py-3 text-[var(--color-muted)]">

@@ -36,7 +36,9 @@ export function summarize(activities: Activity[]) {
     speed: seconds > 0 ? distance / seconds : 0,
     maxDistance: Math.max(0, ...activities.map((a) => a.distance)),
     maxSpeed: Math.max(0, ...speeds),
-    elevation: activities.reduce((sum, a) => sum + (a.elevation_gain ?? 0), 0),
+    elevation: activities.some((a) => a.elevation_gain !== null)
+      ? activities.reduce((sum, a) => sum + (a.elevation_gain ?? 0), 0)
+      : null,
     heartRate: heartRates.length
       ? heartRates.reduce((sum, a) => sum + a.average_heartrate!, 0) /
         heartRates.length
@@ -68,7 +70,7 @@ export function summaryChart(
     if (period === 'month') return date.slice(8, 10);
     if (period === 'week')
       return String(((new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7) + 1);
-    return a.start_date_local.slice(11, 16);
+    return a.date_precision === 'day' ? '—' : a.start_date_local.slice(11, 16);
   };
   let length = 0;
   if (period === 'year') length = 12;
@@ -81,9 +83,12 @@ export function summaryChart(
     buckets.set(period === 'week' ? String(i) : String(i).padStart(2, '0'), 0);
   for (const activity of activities) {
     const bucket = bucketFor(activity);
-    buckets.set(bucket, (buckets.get(bucket) ?? 0) + activity.distance / 1000);
+    buckets.set(
+      bucket,
+      (buckets.get(bucket) ?? 0) + activity.distance / 1609.344
+    );
   }
   return [...buckets.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([label, km]) => ({ label, km: Number(km.toFixed(2)) }));
+    .map(([label, mi]) => ({ label, mi: Number(mi.toFixed(2)) }));
 }

@@ -1,3 +1,4 @@
+import { METERS_PER_MILE } from '../core/units';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -165,7 +166,7 @@ export function RouteMapCanvas({
       'top-right'
     );
     map.addControl(
-      new mapboxgl.ScaleControl({ unit: 'metric', maxWidth: 90 }),
+      new mapboxgl.ScaleControl({ unit: 'imperial', maxWidth: 90 }),
       'bottom-left'
     );
     const observer = new ResizeObserver(() => map.resize());
@@ -271,7 +272,7 @@ export function RouteMapCanvas({
             title={selectedActivity?.name}
           >
             {selectedActivity
-              ? `${selectedActivity.name} · ${(selectedActivity.distance / 1000).toFixed(1)} km`
+              ? `${selectedActivity.name} · ${(selectedActivity.distance / METERS_PER_MILE).toFixed(1)} mi`
               : `${routes.length.toLocaleString()} ${zh ? '条轨迹' : 'routes'}`}
           </p>
         </div>

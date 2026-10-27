@@ -118,7 +118,7 @@ export const ProfileCard = memo(function ProfileCard({
           <p className="font-mono text-3xl font-bold">
             {formatDistance(totalDistance)}
             <span className="ml-1 text-base font-normal text-[var(--color-muted)]">
-              km
+              mi
             </span>
           </p>
           <p className="mt-0.5 flex items-center justify-center gap-1 text-sm text-[var(--color-muted)]">
@@ -231,7 +231,7 @@ export const ProfileCard = memo(function ProfileCard({
             {latest.name || (latest.type === 'Run' ? 'Run' : 'Ride')}
             <span className="font-normal text-[var(--color-muted)]">
               {' '}
-              · {formatDistance(latest.distance)} km ·{' '}
+              · {formatDistance(latest.distance)} mi ·{' '}
               {formatDate(latest.start_date_local)}
             </span>
           </p>

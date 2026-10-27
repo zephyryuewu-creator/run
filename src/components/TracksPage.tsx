@@ -1,3 +1,4 @@
+import { METERS_PER_MILE, displayActivityTime } from '../core/units';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { exportCard } from '../utils/exportCard';
 import { RouteMap } from './RouteMap';
@@ -76,10 +77,10 @@ const TrackThumb = memo(function TrackThumb({
     <button
       type="button"
       aria-pressed={selected}
-      aria-label={`${activity.start_date_local.slice(0, 16)} · ${activity.name} · ${(activity.distance / 1000).toFixed(1)} km`}
+      aria-label={`${activity.start_date_local.slice(0, 16)} · ${activity.name} · ${(activity.distance / METERS_PER_MILE).toFixed(1)} mi`}
       className={`track-thumb group relative cursor-pointer rounded transition-all ${selected ? 'ring-2 ring-[var(--color-accent)] ring-offset-1 ring-offset-[var(--color-bg)]' : ''}`}
       onClick={() => onClick(activity)}
-      title={`${activity.name} — ${(activity.distance / 1000).toFixed(1)} km`}
+      title={`${activity.name} — ${(activity.distance / METERS_PER_MILE).toFixed(1)} mi`}
     >
       <svg
         width={size}
@@ -102,8 +103,8 @@ const TrackThumb = memo(function TrackThumb({
 
 function getColor(a: Activity): string {
   if (a.type === 'Run') {
-    const km = a.distance / 1000;
-    return km >= 20 ? '#ef4444' : '#f97316';
+    const mi = a.distance / METERS_PER_MILE;
+    return mi >= 20 ? '#ef4444' : '#f97316';
   }
   return '#4dd2ff';
 }
@@ -165,18 +166,16 @@ export function TracksPage({
 
   const { totalDist, totalTime, avgPace } = useMemo(() => {
     let totalDist = 0,
-      totalTime = 0,
-      speed = 0,
-      runs = 0;
+      totalTime = 0;
     for (const activity of base) {
       totalDist += activity.distance;
       totalTime += parseMovingTime(activity.moving_time);
-      if (activity.type === 'Run' && activity.average_speed > 0) {
-        speed += activity.average_speed;
-        runs++;
-      }
     }
-    return { totalDist, totalTime, avgPace: runs ? speed / runs : 0 };
+    return {
+      totalDist,
+      totalTime,
+      avgPace: totalTime > 0 ? totalDist / totalTime : 0,
+    };
   }, [base]);
 
   // Cluster tracks — defer heavy work
@@ -318,7 +317,7 @@ export function TracksPage({
                 <p className="font-mono text-2xl font-bold">
                   {formatDistance(totalDist)}{' '}
                   <span className="text-sm font-normal text-[var(--color-muted)]">
-                    km
+                    mi
                   </span>
                 </p>
               </div>
@@ -384,9 +383,9 @@ export function TracksPage({
                   locale === 'zh' ? 'zh-CN' : 'en-US',
                   { year: 'numeric', month: 'short', day: 'numeric' }
                 )}{' '}
-                {new Date(selectedActivity.start_date_local).toLocaleTimeString(
-                  locale === 'zh' ? 'zh-CN' : 'en-US',
-                  { hour: '2-digit', minute: '2-digit' }
+                {displayActivityTime(
+                  selectedActivity.start_date_local,
+                  selectedActivity.date_precision
                 )}
               </p>
               <div className="grid grid-cols-3 gap-2">
@@ -395,9 +394,9 @@ export function TracksPage({
                     {locale === 'zh' ? '距离' : 'Distance'}
                   </p>
                   <p className="font-mono text-base leading-tight font-bold">
-                    {(selectedActivity.distance / 1000).toFixed(2)}{' '}
+                    {(selectedActivity.distance / METERS_PER_MILE).toFixed(2)}{' '}
                     <span className="text-[10px] font-normal text-[var(--color-muted)]">
-                      km
+                      mi
                     </span>
                   </p>
                 </div>
@@ -417,7 +416,7 @@ export function TracksPage({
                     <p className="font-mono text-base leading-tight font-bold">
                       {formatPace(selectedActivity.average_speed)}{' '}
                       <span className="text-[10px] font-normal text-[var(--color-muted)]">
-                        /km
+                        /mi
                       </span>
                     </p>
                   </div>
@@ -688,7 +687,7 @@ export function TracksPage({
                     </span>
                     <span className="flex items-center gap-1.5">
                       <span className="inline-block h-0.5 w-3 rounded bg-[#ef4444]" />
-                      {locale === 'zh' ? '跑步 ≥20km' : 'Run ≥20km'}
+                      {locale === 'zh' ? '跑步 ≥20mi' : 'Run ≥20mi'}
                     </span>
                   </>
                 ) : null}

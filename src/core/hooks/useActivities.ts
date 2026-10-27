@@ -179,17 +179,7 @@ export function parseMovingTime(
   return 0;
 }
 
-export function formatDistance(meters: number): string {
-  return Math.round(meters / 1000).toString();
-}
-
-export function formatPace(speedMs: number): string {
-  if (!speedMs) return '--';
-  const totalSeconds = Math.round(1000 / speedMs);
-  const min = Math.floor(totalSeconds / 60);
-  const sec = totalSeconds % 60;
-  return `${min}:${sec.toString().padStart(2, '0')}`;
-}
+export { formatDistance, formatPace } from '../units';
 
 export function formatDuration(timeStr: string): string {
   const secs = parseMovingTime(timeStr);

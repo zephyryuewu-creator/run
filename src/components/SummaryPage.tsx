@@ -1,3 +1,4 @@
+import { METERS_PER_MILE, displayActivityTime } from '../core/units';
 import { useMemo, useState } from 'react';
 import {
   Bar,
@@ -49,7 +50,7 @@ function SummaryCard({
     ],
     [
       zh ? '平均配速' : 'Average pace',
-      stats.speed > 0 ? `${formatPace(stats.speed)} /km` : '—',
+      stats.speed > 0 ? `${formatPace(stats.speed)} /mi` : '—',
     ],
     [
       zh ? '平均心率' : 'Average heart rate',
@@ -57,17 +58,20 @@ function SummaryCard({
     ],
     [
       zh ? '最远距离' : 'Longest activity',
-      `${number(stats.maxDistance / 1000)} km`,
+      `${number(stats.maxDistance / METERS_PER_MILE)} mi`,
     ],
     [
       zh ? '最快配速' : 'Fastest pace',
-      stats.maxSpeed > 0 ? `${formatPace(stats.maxSpeed)} /km` : '—',
+      stats.maxSpeed > 0 ? `${formatPace(stats.maxSpeed)} /mi` : '—',
     ],
     [
       zh ? '平均距离' : 'Average distance',
-      `${number(stats.distance / stats.count / 1000)} km`,
+      `${number(stats.distance / stats.count / METERS_PER_MILE)} mi`,
     ],
-    [zh ? '累计爬升' : 'Elevation gain', `${number(stats.elevation)} m`],
+    [
+      zh ? '累计爬升' : 'Elevation gain',
+      stats.elevation === null ? '—' : `${number(stats.elevation)} m`,
+    ],
   ];
   const chartUnit =
     period === 'life'
@@ -100,9 +104,9 @@ function SummaryCard({
             : label}
         </h2>
         <p className="text-2xl font-semibold text-[var(--color-accent)] tabular-nums">
-          {number(stats.distance / 1000)}{' '}
+          {number(stats.distance / METERS_PER_MILE)}{' '}
           <span className="text-sm font-normal text-[var(--color-muted)]">
-            km
+            mi
           </span>
         </p>
       </div>
@@ -116,7 +120,7 @@ function SummaryCard({
       </dl>
       <div
         role="img"
-        aria-label={`${label}: ${chart.map((d) => `${d.label}: ${d.km} km`).join(', ')}`}
+        aria-label={`${label}: ${chart.map((d) => `${d.label}: ${d.mi} mi`).join(', ')}`}
       >
         <div className="h-40 w-full min-w-0">
           <ResponsiveContainer width="100%" height="100%">
@@ -151,8 +155,8 @@ function SummaryCard({
                 }}
               />
               <Bar
-                dataKey="km"
-                name="km"
+                dataKey="mi"
+                name="mi"
                 fill="var(--color-accent)"
                 radius={[3, 3, 0, 0]}
                 maxBarSize={32}
@@ -162,7 +166,7 @@ function SummaryCard({
           </ResponsiveContainer>
         </div>
         <p className="mt-1 text-right text-xs text-[var(--color-muted)]">
-          {chartUnit} · km
+          {chartUnit} · mi
         </p>
       </div>
       {period === 'day' && (
@@ -174,10 +178,11 @@ function SummaryCard({
               onClick={() => onSelectActivity(a)}
             >
               <span>
-                {a.start_date_local.slice(11, 16)} · {a.name}
+                {displayActivityTime(a.start_date_local, a.date_precision)} ·{' '}
+                {a.name}
               </span>
               <span className="shrink-0 text-[var(--color-accent)]">
-                {number(a.distance / 1000)} km ↗
+                {number(a.distance / METERS_PER_MILE)} mi ↗
               </span>
             </button>
           ))}
