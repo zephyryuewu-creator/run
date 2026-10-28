@@ -1,0 +1,88 @@
+name: Verify Route map repair
+
+on:
+  push:
+    branches: [fix-route-map]
+    paths: [.github/workflows/route-map-verify.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - name: Apply the map renderer repair
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(r'''{"style":"  const style = useMemo<maplibregl.StyleSpecification>(\n    () => ({\n      version: 8,\n      sources: {\n        openstreetmap: {\n          type: 'raster',\n          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],\n          tileSize: 256,\n          minzoom: 0,\n          maxzoom: 19,\n          attribution:\n            '&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors',\n        },\n      },\n      layers: [\n        {\n          id: 'openstreetmap',\n          type: 'raster',\n          source: 'openstreetmap',\n          paint: {\n            'raster-saturation': dark === false ? 0 : -0.6,\n            'raster-brightness-max': dark === false ? 1 : 0.75,\n          },\n        },\n      ],\n    }),\n    [dark]\n  );","footer":"      <div className=\"route-map-footer\">\n        <span role=\"status\" aria-live=\"polite\">\n          {status === 'error'\n            ? zh\n              ? '底图加载失败，请重试'\n              : 'Basemap failed to load'\n            : status === 'loading'\n              ? zh\n                ? '正在加载地图…'\n                : 'Loading map…'\n              : zh\n                ? '底图 · OpenStreetMap'\n                : 'Basemap · OpenStreetMap'}\n        </span>\n        {status === 'error' && (\n          <button\n            className=\"route-map-action\"\n            onClick={() => setRetry((value) => value + 1)}\n          >\n            {zh ? '重试' : 'Retry'}\n          </button>\n        )}\n      </div>\n","doc":"# Route map repair\n\nThe previous Route map used Mapbox GL JS 3 without a Mapbox token. That renderer revokes rendering without valid Mapbox authorization, including when its style is served by a different provider. The configured CARTO fallback also now documents a separate key requirement.\n\nUse MapLibre GL JS 6.16.0 and the standard OpenStreetMap raster service for this component. Keep the existing card, real GPS lines, Fit routes, navigation, imperial scale, fullscreen and locale controls. Keep attribution visible and use normal browser caching. The China footprint component and running datasets are unchanged. Existing Mapbox dependencies/configuration remain available to other parts of the upstream application.\n\nAlternatives: supplying Mapbox credentials would retain the old renderer but requires a separate account/key. MapLibre with CARTO would require a CARTO key. The chosen MapLibre/OpenStreetMap combination works for the current personal website without either key.\n\nRegression case before the change: Tracks contains one valid NRC GPS route but displays “Basemap failed to load” and an empty canvas. This was reproduced with the browser before changing code.\n\nVerification: targeted TypeScript, ESLint and Prettier checks; existing frontend unit tests; production build; then verify visible street tiles and the GPS line on Home and Tracks, Fit routes, zoom, fullscreen and light/dark themes on the deployed website.\n\nReferences:\n- https://github.com/mapbox/mapbox-gl-js/blob/v3.23.0/src/ui/map.ts\n- https://github.com/CartoDB/basemap-styles\n- https://maplibre.org/maplibre-gl-js/docs/\n- https://operations.osmfoundation.org/policies/tiles/\n"}''')
+          path = Path("src/components/RouteMapCanvas.tsx")
+          source = path.read_text(encoding="utf-8")
+          def once(before, after):
+              global source
+              if source.count(before) != 1:
+                  raise RuntimeError("Route map source changed: " + before[:70])
+              source = source.replace(before, after)
+          once("import mapboxgl from 'mapbox-gl';", "import * as maplibregl from 'maplibre-gl';")
+          once("import 'mapbox-gl/dist/mapbox-gl.css';", "import 'maplibre-gl/dist/maplibre-gl.css';")
+          once("import { MAPBOX_TOKEN } from '../config';\n", "")
+          once("  const [provider, setProvider] = useState(MAPBOX_TOKEN ? 'mapbox' : 'carto');\n", "")
+          start = source.index("  const style =")
+          end = source.index("\n\n  const routes", start)
+          source = source[:start] + payload["style"] + source[end:]
+          once("      accessToken: MAPBOX_TOKEN,\n      language: zh ? 'zh-Hans' : 'en',\n", "      attributionControl: false,\n")
+          once("    map.addControl(new mapboxgl.NavigationControl(), 'top-right');", "    map.addControl(new mapboxgl.NavigationControl(), 'top-right');\n    map.addControl(new mapboxgl.AttributionControl({ compact: false }), 'bottom-right');")
+          start = source.index("    const onError =")
+          end = source.index("    const onIdle =", start)
+          source = source[:start] + "    const onError = () => {\n      failed = true;\n      setStatus('error');\n    };\n" + source[end:]
+          once("      localFontFamily: undefined,\n", "")
+          once("  }, [style, provider, retry, zh]);", "  }, [style, retry, zh]);")
+          start = source.index('      <div className="route-map-footer">')
+          end = source.index("    </section>", start)
+          source = source[:start] + payload["footer"] + source[end:]
+          source = source.replace("mapboxgl.", "maplibregl.")
+          if "MAPBOX_TOKEN" in source or "setProvider" in source or "mapboxgl" in source:
+              raise RuntimeError("Unexpected remaining Mapbox dependency in Route map")
+          path.write_text(source, encoding="utf-8")
+          path = Path("src/components/RouteMap.css")
+          source = path.read_text(encoding="utf-8").replace(".mapboxgl-", ".maplibregl-")
+          path.write_text(source, encoding="utf-8")
+          Path("docs/ROUTE_MAP_FIX.md").write_text(payload["doc"], encoding="utf-8")
+          path = Path("docs/NRC_SYNC.md")
+          source = path.read_text(encoding="utf-8").replace("Mapbox basemap configuration is separate from importing GPS routes.", "Route map uses MapLibre and OpenStreetMap independently of NRC authorization.")
+          path.write_text(source, encoding="utf-8")
+          Path(".cache").mkdir(exist_ok=True)
+          Path(".cache/tsconfig.route-map.json").write_text(json.dumps({"extends":"../tsconfig.json","include":["../src/components/RouteMapCanvas.tsx","../vite-env.d.ts"]}),encoding="utf-8")
+          
+          PY
+      - name: Install pinned MapLibre and update lockfile
+        run: pnpm add --save-exact maplibre-gl@6.16.0
+      - name: Format changed source
+        run: pnpm exec prettier --write src/components/RouteMapCanvas.tsx src/components/RouteMap.css package.json pnpm-lock.yaml
+      - name: Type check Route map and imported code
+        run: pnpm exec tsc --noEmit -p .cache/tsconfig.route-map.json
+      - name: Check map code quality
+        run: |
+          pnpm exec eslint src/components/RouteMapCanvas.tsx
+          pnpm check
+      - name: Run existing frontend regression tests
+        run: node --test tests/units.test.mjs
+      - name: Build production website
+        run: PATH_PREFIX=/run pnpm build
+      - name: Save verified map repair
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/components/RouteMapCanvas.tsx src/components/RouteMap.css package.json pnpm-lock.yaml docs/ROUTE_MAP_FIX.md docs/NRC_SYNC.md
+          git diff --cached --check
+          git commit -m "fix: render route maps without proprietary map credentials"
+          git push origin HEAD:fix-route-map
