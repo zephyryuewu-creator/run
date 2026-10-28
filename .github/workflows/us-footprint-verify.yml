@@ -17,245 +17,44 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           run_install: false
-      - run: pnpm install --frozen-lockfile
-      - name: Write behavioral tests first
-        run: |
-          mkdir -p tests
-          cat > tests/us-states.test.mjs <<'JS'
-          import assert from 'node:assert/strict';
-          import test from 'node:test';
-          import { readFile } from 'node:fs/promises';
-          import polyline from '@mapbox/polyline';
-          import ts from 'typescript';
-          import { createRequire } from 'node:module';
-          import { pathToFileURL } from 'node:url';
-          const source = await readFile(new URL('../src/core/usStates.ts', import.meta.url), 'utf8');
-          const shapes = await readFile(new URL('../src/assets/us-states.json', import.meta.url), 'utf8');
-          const polylineModule = pathToFileURL(createRequire(import.meta.url).resolve('@mapbox/polyline')).href;
-          const prepared = source.replace(/import boundaries from [^;]+;/, 'const boundaries = ' + shapes.trim() + ';').replace("from '@mapbox/polyline'", "from '" + polylineModule + "'");
-          const compiled = ts.transpileModule(prepared, {compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
-          const { US_STATES, findUSState, getActivityUSStates } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
-          test('footprint contains exactly 50 states, including Alaska and Hawaii', () => {
-            assert.equal(US_STATES.length, 50);
-            assert.equal(new Set(US_STATES.map(s => s.id)).size, 50);
-            for (const name of ['Georgia', 'Alaska', 'Hawaii']) assert.ok(US_STATES.some(s => s.name === name && s.path.startsWith('M')));
-            assert.ok(!US_STATES.some(s => s.name === 'District of Columbia' || s.name === 'Puerto Rico'));
-          });
-          test('longitude/latitude finds mainland states and Alaska/Hawaii', () => {
-            for (const [lng, lat, name] of [[-84.323,33.797,'Georgia'],[-74.006,40.7128,'New York'],[-118.2437,34.0522,'California'],[-149.9003,61.2181,'Alaska'],[-157.8583,21.3069,'Hawaii']]) assert.equal(findUSState(lng, lat), name);
-          });
-          test('foreign, ocean, DC and invalid coordinates do not invent a state', () => {
-            for (const [lng, lat] of [[116.4,39.9],[-79.38,43.65],[-77.0365,38.8977],[0,0],[NaN,33],[181,33],[-84,91]]) assert.equal(findUSState(lng, lat), null);
-          });
-          test('real NRC GPS lights Georgia once despite repeated route points', async () => {
-            const activities = JSON.parse(await readFile(new URL('../src/static/nike-activities.json', import.meta.url)));
-            assert.deepEqual(getActivityUSStates(activities[0]), ['Georgia']);
-          });
-          test('indoor and missing GPS stay unlocated, without changing the record', () => {
-            for (const summary_polyline of [null, '', '_', 'None']) {
-              const a = {summary_polyline};
-              assert.deepEqual(getActivityUSStates(a), []);
-              assert.equal(a.summary_polyline, summary_polyline);
-            }
-          });
-          test('a recorded cross-state route counts each state only once', () => {
-            const a = {summary_polyline:polyline.encode([[33.797,-84.323],[34.0522,-118.2437],[33.797,-84.323]])};
-            assert.deepEqual(getActivityUSStates(a), ['California','Georgia']);
-          });
-          JS
-      - name: Confirm tests fail before the feature exists
-        run: |
-          if node --test tests/us-states.test.mjs > /tmp/us-map-red.log 2>&1; then
-            cat /tmp/us-map-red.log
-            echo 'Expected the pre-feature test run to fail.'
-            exit 1
-          fi
-          cat /tmp/us-map-red.log
-          grep -Eq 'ENOENT|ERR_MODULE_NOT_FOUND' /tmp/us-map-red.log
-      - name: Implement states and adapt existing footprint card
+      - name: Keep GPS regression input independent of future run uploads
         run: |
           python3 - <<'PY'
-          import io, json, tarfile, urllib.request
+          import json
           from pathlib import Path
-          def write(path, content):
-              p = Path(path)
-              p.parent.mkdir(parents=True, exist_ok=True)
-              p.write_text(content, encoding='utf-8')
-          # Pin a published, ISC-licensed redistribution of Census boundaries.
-          payload = urllib.request.urlopen('https://registry.npmjs.org/us-atlas/-/us-atlas-3.0.1.tgz', timeout=30).read()
-          archive = tarfile.open(fileobj=io.BytesIO(payload), mode='r:gz')
-          def resource(name):
-              return archive.extractfile('package/' + name).read().decode()
-          raw = json.loads(resource('states-10m.json'))
-          projected = json.loads(resource('states-albers-10m.json'))
-          def geometry(topology, shape):
-              scale, translate = topology['transform']['scale'], topology['transform']['translate']
-              def arc(index):
-                  x = y = 0
-                  points = []
-                  for dx, dy in topology['arcs'][index if index >= 0 else ~index]:
-                      x += dx
-                      y += dy
-                      points.append([round(x * scale[0] + translate[0], 5), round(y * scale[1] + translate[1], 5)])
-                  return points if index >= 0 else points[::-1]
-              def ring(indices):
-                  points = []
-                  for index in indices:
-                      if points: points.pop()
-                      points.extend(arc(index))
-                  return points
-              polygons = [shape['arcs']] if shape['type'] == 'Polygon' else shape['arcs']
-              return [[ring(indices) for indices in polygon] for polygon in polygons]
-          drawn = {s['id']:s for s in projected['objects']['states']['geometries']}
-          states = []
-          for s in raw['objects']['states']['geometries']:
-              if int(s['id']) > 56 or s['id'] == '11': continue
-              polygons = geometry(raw, s)
-              paths = []
-              for polygon in geometry(projected, drawn[s['id']]):
-                  for ring in polygon:
-                      paths.append(' '.join(('M' if i == 0 else 'L') + format(x, '.1f') + ',' + format(y, '.1f') for i, (x,y) in enumerate(ring)) + ' Z')
-              states.append({'id':s['id'], 'name':s['properties']['name'], 'path':' '.join(paths), 'polygons':polygons})
-          states.sort(key=lambda s:s['name'])
-          assert len(states) == 50
-          write('src/assets/us-states.json', json.dumps(states, separators=(',',':')) + '\n')
-          write('docs/licenses/us-atlas-LICENSE.txt', resource('LICENSE'))
-          write('src/core/usStates.ts', r'''import polyline from '@mapbox/polyline';
-          import boundaries from '../assets/us-states.json' with { type: 'json' };
-          import type { Activity } from './types';
-          export const US_STATES = boundaries;
-          type Position = number[];
-          // Rings crossing the antimeridian are evaluated in a consistent 0..360 frame.
-          function inRing(lng: number, lat: number, ring: Position[]): boolean {
-            const longitudes = ring.map(p => p[0]);
-            const crossesDateline = Math.max(...longitudes) - Math.min(...longitudes) > 180;
-            const x = crossesDateline && lng < 0 ? lng + 360 : lng;
-            const longitude = (value: number) => crossesDateline && value < 0 ? value + 360 : value;
-            let inside = false;
-            for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-              const xi = longitude(ring[i][0]), yi = ring[i][1];
-              const xj = longitude(ring[j][0]), yj = ring[j][1];
-              if ((yi > lat) !== (yj > lat) && x < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
-            }
-            return inside;
-          }
-          // Cache polygon bounds once; route-point checks then skip distant states.
-          const indexedStates = US_STATES.map(state => ({
-            name: state.name,
-            polygons: state.polygons.map(rings => {
-              const outer = rings[0];
-              return { rings, minLng: Math.min(...outer.map(p => p[0])), maxLng: Math.max(...outer.map(p => p[0])), minLat: Math.min(...outer.map(p => p[1])), maxLat: Math.max(...outer.map(p => p[1])) };
-            }),
-          }));
-          export function findUSState(lng: number, lat: number): string | null {
-            if (!Number.isFinite(lng) || !Number.isFinite(lat) || Math.abs(lng) > 180 || Math.abs(lat) > 90) return null;
-            for (const state of indexedStates) {
-              for (const polygon of state.polygons) {
-                if (lng < polygon.minLng || lng > polygon.maxLng || lat < polygon.minLat || lat > polygon.maxLat) continue;
-                if (inRing(lng, lat, polygon.rings[0]) && !polygon.rings.slice(1).some(ring => inRing(lng, lat, ring))) return state.name;
-              }
-            }
-            return null;
-          }
-          export function getActivityUSStates(activity: Pick<Activity, 'summary_polyline'>): string[] {
-            if (!activity.summary_polyline || activity.summary_polyline === 'None') return [];
-            try {
-              const visited = new Set<string>();
-              for (const [lat, lng] of polyline.decode(activity.summary_polyline)) {
-                const name = findUSState(lng, lat);
-                if (name) visited.add(name);
-              }
-              return [...visited].sort();
-            } catch {
-              return [];
-            }
-          }
-          ''')
-          # Keep the upstream card markup, focus, hover, and route-filter interaction.
-          source = Path('src/components/ChinaMap.tsx').read_text()
-          body = source[source.index('export const ChinaMap'):]
-          body = body.replace('ChinaMap', 'USMap').replace('Province', 'State').replace('province', 'state')
-          start = body.index('  const [features, setFeatures]')
-          end = body.index('  // Build state', start)
-          body = body[:start] + '  const SVG_W = 975;\n  const SVG_H = 610;\n  const paths = US_STATES;\n\n' + body[end:]
-          body = body.replace('const p = extractState(a.location_country);\n      if (p) map.set(p, (map.get(p) ?? 0) + 1);', 'for (const name of getActivityUSStates(a)) {\n        map.set(name, (map.get(name) ?? 0) + 1);\n      }')
-          body = body.replace('features.length || 35', '50').replace('feature.adcode', 'feature.id').replace('省份', '州')
-          body = body.replace('strokeWidth="0.5"', 'strokeWidth="1.5"\n                fillRule="evenodd"')
-          preamble = """import { memo, useMemo, useState } from 'react';
-          import type { Activity, SportFilter } from '../types';
-          import { useLocale } from '../hooks/useLocale';
-          import { US_STATES, getActivityUSStates } from '../core/usStates';
-          interface USMapProps {
-            activities: Activity[];
-            filter: SportFilter;
-            onSelectState?: (state: string | null) => void;
-            selectedState?: string | null;
-          }
-          """
-          write('src/components/USMap.tsx', preamble + body)
-          dashboard = Path('src/themes/dashboard/index.tsx').read_text()
-          dashboard = dashboard.replace('  extractProvince,\n', '')
-          dashboard = dashboard.replace("import { ChinaMap } from '@/components/ChinaMap';", "import { USMap } from '@/components/USMap';\nimport { getActivityUSStates } from '@/core/usStates';")
-          dashboard = dashboard.replace('Province', 'State').replace('province', 'state').replace('ChinaMap', 'USMap')
-          dashboard = dashboard.replace('extractState(a.location_country) === selectedState', 'getActivityUSStates(a).includes(selectedState)')
-          write('src/themes/dashboard/index.tsx', dashboard)
-          profile = Path('src/components/ProfileCard.tsx').read_text()
-          profile = profile.replace('  extractProvince,\n', '')
-          profile = profile.replace("import { AVATAR }", "import { getActivityUSStates } from '../core/usStates';\nimport { AVATAR }")
-          profile = profile.replace('// Countries and provinces — use shared extractProvince for consistency with ChinaMap', '// Count US states from the same GPS-derived footprint used by USMap.')
-          profile = profile.replace('const provinces = new Set<string>();', 'const states = new Set(activities.flatMap(getActivityUSStates));')
-          profile = profile.replace('    // Province — use shared logic (China-only)\n    const p = extractProvince(loc);\n    if (p) provinces.add(p);\n', '')
-          profile = profile.replace('  const formatHours', "  if (states.size > 0) countries.add('United States');\n\n  const formatHours")
-          profile = profile.replace("{provinces.size} {t('provinces')}", "{states.size} {locale === 'zh' ? '美国州' : 'US states'}")
-          write('src/components/ProfileCard.tsx', profile)
-          package = json.loads(Path('package.json').read_text())
-          package['scripts']['build'] = 'node --test tests/us-states.test.mjs && vite build && node --test tests/map-worker.test.mjs'
-          write('package.json', json.dumps(package, indent=2) + '\n')
-          write('docs/US_FOOTPRINT.md', '''# US footprint map
-          The Dashboard footprint now shows the 50 US states, including inset Alaska and Hawaii. DC and territories are outside the 50-state total.
-          Each activity counts once per state containing one of its recorded GPS points. An activity with points in several states counts once in each. Missing GPS (including the indoor Excel records) does not invent a location. The Excel and NRC source data are unchanged.
-          The state highlight and profile state count use the same function. Clicking a visited state filters the Home route map; Clear restores all routes. Existing year selection still applies to the footprint and route map.
-          Boundaries and projected SVG paths are vendored from us-atlas 3.0.1, a redistribution of the US Census Bureau 2017 cartographic boundaries. Point-in-polygon uses geographic coordinates; display uses the packaged Albers USA projection (975 x 610). Generalized state/coast boundaries are approximate. No location is sent to a geocoding service and no API key is needed.
-          Sources: https://github.com/topojson/us-atlas and https://www.census.gov/geographies/mapping-files/time-series/geo/carto-boundary-file.html
-          ISC notice: docs/licenses/us-atlas-LICENSE.txt.
-          Tests run before every build: node --test tests/us-states.test.mjs. They cover 50 states, the real Georgia NRC track, missing GPS, multiple states, foreign/invalid coordinates, DC exclusion, Alaska and Hawaii.
-          ''')
-          write('docs/superpowers/plans/2026-10-28-us-footprint.md', '''# US Footprint Implementation Plan
-          Goal: Replace the China footprint with 50 US states in the existing Dashboard.
-          Architecture: Vendor Census-derived geographic boundaries and projected paths; derive visited states from GPS in the browser. Keep source running data and the Route map implementation intact.
-          Tech stack: Existing React, TypeScript and polyline dependency, no new runtime dependency.
-          Constraints: 50 states includes Alaska and Hawaii; no guessed indoor locations; all work on a GitHub branch and verified on GitHub Pages.
-          - [x] Write behavior tests first and observe RED on the pre-feature branch.
-          - [x] Generate state boundaries and paths from pinned us-atlas 3.0.1 with ISC notice.
-          - [x] Add shared GPS state classification and adapt the original footprint card, profile counter and route filter.
-          - [ ] Run state tests, existing unit tests, type checking, targeted lint and production build.
-          - [ ] Review the diff, merge and visually verify Georgia highlight, state selection and existing routes on GitHub Pages.
-          Review focus: coordinate order, dateline, holes/DC exclusion, no-GPS records, repeated and cross-state GPS points, state filtering without changing all-run totals.
-          ''')
-          write('tsconfig.us-footprint-check.json', json.dumps({'extends':'./tsconfig.json','include':['src/themes/dashboard/index.tsx','src/components/USMap.tsx','src/components/ProfileCard.tsx','src/core/usStates.ts','vite-env.d.ts']}))
-          print('Generated', len(states), 'state shapes; data bytes:', Path('src/assets/us-states.json').stat().st_size)
+          fixture = Path('tests/fixtures/nrc-georgia.json')
+          fixture.parent.mkdir(parents=True, exist_ok=True)
+          if not fixture.exists():
+              records = json.loads(Path('src/static/nike-activities.json').read_text())
+              record = next(a for a in records if a.get('nike_activity_id') == 'd747119f-a236-484a-b8af-bb23e258acc7')
+              fixture.write_text(json.dumps([{'summary_polyline':record['summary_polyline']}], indent=2) + '\n')
+          test = Path('tests/us-states.test.mjs')
+          test.write_text(test.read_text().replace('../src/static/nike-activities.json', './fixtures/nrc-georgia.json'))
+          Path('tsconfig.us-footprint-check.json').write_text(json.dumps({'extends':'./tsconfig.json','include':['src/themes/dashboard/index.tsx','src/components/USMap.tsx','src/components/ProfileCard.tsx','src/core/usStates.ts','vite-env.d.ts']}))
+          plan = Path('docs/superpowers/plans/2026-10-28-us-footprint.md')
+          plan.write_text(plan.read_text().replace('- [ ] Run state tests', '- [x] Run state tests') + '\nValidation: GitHub Actions 40763944282 passed Node 24 Dashboard typing/lint and builds on Node 24 and Node 20. The fixed GPS fixture prevents future NRC uploads changing the regression test input.\n')
           PY
-      - name: Format and verify
+      - run: pnpm install --frozen-lockfile
+      - name: Verify Node 24
         env:
           PATH_PREFIX: /run
         run: |
-          pnpm exec prettier --write src/core/usStates.ts src/components/USMap.tsx src/components/ProfileCard.tsx src/themes/dashboard/index.tsx src/assets/us-states.json package.json tests/us-states.test.mjs
+          pnpm exec prettier --write tests/us-states.test.mjs tests/fixtures/nrc-georgia.json
           node --test tests/us-states.test.mjs tests/units.test.mjs
           pnpm exec tsc --noEmit --project tsconfig.us-footprint-check.json
           pnpm exec eslint src/core/usStates.ts src/components/USMap.tsx src/components/ProfileCard.tsx src/themes/dashboard/index.tsx
           pnpm build
-      - name: Verify supported Node 20 build
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Build on Node 20
+      - name: Verify Node 20
         env:
           PATH_PREFIX: /run
         run: pnpm build
-      - name: Commit verified feature to isolated branch
+      - name: Commit stable regression fixture
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/assets/us-states.json src/core/usStates.ts src/components/USMap.tsx src/components/ProfileCard.tsx src/themes/dashboard/index.tsx tests/us-states.test.mjs package.json docs/US_FOOTPRINT.md docs/licenses/us-atlas-LICENSE.txt docs/superpowers/plans/2026-10-28-us-footprint.md
-          git commit -m 'feat: show GPS-derived US state footprints'
+          git add tests/us-states.test.mjs tests/fixtures/nrc-georgia.json docs/superpowers/plans/2026-10-28-us-footprint.md
+          git commit -m 'test: keep state regression independent of new NRC uploads'
           git push origin HEAD:feat-us-footprint
