@@ -66,9 +66,7 @@ test('foreign, ocean, DC and invalid coordinates do not invent a state', () => {
 });
 test('real NRC GPS lights Georgia once despite repeated route points', async () => {
   const activities = JSON.parse(
-    await readFile(
-      new URL('../src/static/nike-activities.json', import.meta.url)
-    )
+    await readFile(new URL('./fixtures/nrc-georgia.json', import.meta.url))
   );
   assert.deepEqual(getActivityUSStates(activities[0]), ['Georgia']);
 });
