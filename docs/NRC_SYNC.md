@@ -19,6 +19,6 @@ This is a temporary access token. It does not automatically refresh; if Nike ret
 - scripts/sync_nike.py: Nike download, following upstream endpoints.
 - scripts/nike_data.py: units, dates, GPS normalization and deterministic merge.
 
-Runs are distinguished by stable source-specific record IDs. Re-running the import does not add duplicates. Do not also enter the same NRC outdoor run into the indoor Excel log. Missing GPS, heart rate and country remain unknown; no indoor route is fabricated. The original China footprint map remains unchanged. Mapbox basemap configuration is separate from importing GPS routes.
+Runs are distinguished by stable source-specific record IDs. Re-running the import does not add duplicates. Do not also enter the same NRC outdoor run into the indoor Excel log. Missing GPS, heart rate and country remain unknown; no indoor route is fabricated. The original China footprint map remains unchanged. Route map uses MapLibre and OpenStreetMap independently of NRC authorization.
 
 References: https://github.com/yihong0618/running_page#nike-run-club-new and https://github.com/yihong0618/running_page/issues/692
