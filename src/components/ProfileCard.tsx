@@ -1,11 +1,8 @@
 import { memo } from 'react';
 import type { Activity, SportFilter } from '../types';
 import { useLocale } from '../hooks/useLocale';
-import {
-  formatDistance,
-  parseMovingTime,
-  extractProvince,
-} from '../hooks/useActivities';
+import { formatDistance, parseMovingTime } from '../hooks/useActivities';
+import { getActivityUSStates } from '../core/usStates';
 import { AVATAR } from '../config';
 
 interface ProfileCardProps {
@@ -36,9 +33,9 @@ export const ProfileCard = memo(function ProfileCard({
   const yearsActive =
     allDates.length > 0 ? Math.max(...allDates) - Math.min(...allDates) + 1 : 0;
 
-  // Countries and provinces — use shared extractProvince for consistency with ChinaMap
+  // Count US states from the same GPS-derived footprint used by USMap.
   const countries = new Set<string>();
-  const provinces = new Set<string>();
+  const states = new Set(activities.flatMap(getActivityUSStates));
   for (const a of activities) {
     const loc = a.location_country;
     if (!loc || loc === 'None') continue;
@@ -57,10 +54,9 @@ export const ProfileCard = memo(function ProfileCard({
     } else {
       countries.add('中国');
     }
-    // Province — use shared logic (China-only)
-    const p = extractProvince(loc);
-    if (p) provinces.add(p);
   }
+
+  if (states.size > 0) countries.add('United States');
 
   const formatHours = (secs: number) => `${(secs / 3600).toFixed(1)}h`;
 
@@ -154,7 +150,7 @@ export const ProfileCard = memo(function ProfileCard({
                 d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
               />
             </svg>
-            {provinces.size} {t('provinces')}
+            {states.size} {locale === 'zh' ? '美国州' : 'US states'}
           </p>
         </div>
       </div>
