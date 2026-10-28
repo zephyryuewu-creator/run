@@ -225,10 +225,24 @@ def main():
     parser.add_argument(
         "--manifest", type=Path, default=Path("src/static/data-source.json")
     )
+    parser.add_argument("--nike-data", type=Path, help="Persisted NRC input to merge with indoor Excel")
     args = parser.parse_args()
     try:
         activities, manifest = import_workbook(args.workbook)
-    except (ValueError, OSError, KeyError) as error:
+        if args.nike_data is not None:
+            from nike_data import merge_activities
+            nike_rows = json.loads(args.nike_data.read_text(encoding="utf-8"))
+            indoor_count = len(activities)
+            activities = merge_activities(activities, nike_rows)
+            manifest.update({
+                "sources": {"excel": indoor_count, "nike": len(nike_rows)},
+                "nike_input_file": args.nike_data.name,
+                "nike_input_sha256": hashlib.sha256(args.nike_data.read_bytes()).hexdigest(),
+                "record_count": len(activities),
+                "distance_miles": round(sum(row["distance"] for row in activities) / METERS_PER_MILE, 6),
+                "duration_seconds": sum(round(row["distance"] / row["average_speed"]) for row in activities),
+            })
+    except (ValueError, OSError, KeyError, TypeError) as error:
         print(f"Workbook validation failed: {error}", file=sys.stderr)
         return 1
     write_json(args.output, activities)

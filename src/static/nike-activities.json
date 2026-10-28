@@ -1,0 +1,25 @@
+[
+  {
+    "run_id": 1793121932948,
+    "record_id": "NRC:d747119f-a236-484a-b8af-bb23e258acc7",
+    "nike_activity_id": "d747119f-a236-484a-b8af-bb23e258acc7",
+    "name": "Tuesday Afternoon Run",
+    "type": "Run",
+    "subtype": "Run",
+    "source": "nike",
+    "distance": 924.129519,
+    "moving_time": "0:04:38",
+    "start_date": "2026-10-27T17:20:45Z",
+    "start_date_local": "2026-10-27T13:20:45",
+    "date_precision": "minute",
+    "summary_polyline": "esgmE|ftaOR?RATCXAP?TATCFVA^J`@CXRJPBFXDTAXATCVATITMXGXLNd@PR?VCVAX@RERAVCP@RATGVGTGTGNMVAPDPDNLNLNNHVNLPOLKPPHVHXHPHTFZHXHXNTNLTJT?PEVCPBJV@TJ\\NVPPQRSPC\\DZ@\\?Z@Z@\\@T",
+    "location_country": null,
+    "average_heartrate": null,
+    "average_speed": 3.324206901191593,
+    "elevation_gain": 3.654327392578125,
+    "running_steps": 787,
+    "streak": 1,
+    "workout_details": null,
+    "notes": "Recorded with Nike Run Club"
+  }
+]
