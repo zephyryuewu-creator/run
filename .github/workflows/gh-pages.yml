@@ -49,7 +49,7 @@ jobs:
       - name: Verify Excel conversion
         run: python -m unittest discover -s scripts/tests -v
       - name: Import personal workbook
-        run: python scripts/import_excel.py Running_Log_EN.xlsx
+        run: python scripts/import_excel.py Running_Log_EN.xlsx --nike-data src/static/nike-activities.json
       - name: Verify mile and date formatting
         run: node --test tests/units.test.mjs
       - uses: pnpm/action-setup@v4
