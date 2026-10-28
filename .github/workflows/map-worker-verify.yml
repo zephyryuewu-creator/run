@@ -1,0 +1,84 @@
+name: Verify map worker deployment
+
+on:
+  push:
+    branches: [fix-map-worker]
+    paths: [.github/workflows/map-worker-verify.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - run: pnpm install --frozen-lockfile
+      - name: Add production worker regression tests
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(r'''{"test":"import assert from 'node:assert/strict';\nimport { readFileSync, readdirSync } from 'node:fs';\nimport { posix } from 'node:path';\nimport test from 'node:test';\n\nconst dist = new URL('../dist/', import.meta.url);\nconst assets = new URL('assets/', dist);\n\nfunction emittedWorker() {\n  const name = readdirSync(assets).find((file) =>\n    /^maplibre-gl-worker-[\\w-]+\\.m?js$/.test(file)\n  );\n  assert.ok(name, 'MapLibre worker asset was not emitted by the production build');\n  return { name, code: readFileSync(new URL(name, assets), 'utf8') };\n}\n\ntest('production emits a nonempty JavaScript worker rather than a missing page', () => {\n  const worker = emittedWorker();\n  assert.ok(worker.code.length > 0);\n  assert.doesNotMatch(worker.code, /^\\s*<!doctype html/i);\n});\n\ntest('the map bundle references its emitted worker under the deployed site base', () => {\n  const worker = emittedWorker();\n  const html = readFileSync(new URL('index.html', dist), 'utf8');\n  const entry = html.match(/<script\\b[^>]*\\bsrc=[\"']([^\"']+)[\"']/);\n  assert.ok(entry, 'The production HTML must reference its application bundle');\n  const entryPath = new URL(entry[1], 'https://example.invalid/').pathname;\n  const expectedPath = posix.dirname(entryPath) + '/' + worker.name;\n  const scripts = readdirSync(assets)\n    .filter((file) => /\\.m?js$/.test(file))\n    .map((file) => readFileSync(new URL(file, assets), 'utf8'))\n    .join('\\n');\n  assert.ok(\n    scripts.includes(expectedPath),\n    'The map bundle must reference the worker at the deployed asset path: ' + expectedPath\n  );\n});\n"}''')
+          Path("tests/map-worker.test.mjs").write_text(payload["test"], encoding="utf-8")
+          Path(".cache").mkdir(exist_ok=True)
+          Path(".cache/tsconfig.route-map.json").write_text(json.dumps({"extends":"../tsconfig.json","include":["../src/components/RouteMapCanvas.tsx","../vite-env.d.ts"]}))
+          
+          PY
+      - name: Reproduce missing worker in production build (RED)
+        run: |
+          PATH_PREFIX=/run pnpm exec vite build
+          python - <<'PY'
+          import subprocess
+          result = subprocess.run(["node", "--test", "tests/map-worker.test.mjs"], capture_output=True, text=True, check=False)
+          print(result.stdout)
+          assert result.returncode != 0 and "worker asset was not emitted" in result.stdout
+          PY
+      - name: Configure the Vite worker URL
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path("src/components/RouteMapCanvas.tsx")
+          source = path.read_text(encoding="utf-8")
+          old = "import 'maplibre-gl/dist/maplibre-gl.css';"
+          assert source.count(old) == 1
+          source = source.replace(old, old + "\nimport mapWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';")
+          old = "import './RouteMap.css';"
+          assert source.count(old) == 1
+          source = source.replace(old, old + "\n\nmaplibregl.setWorkerUrl(mapWorkerUrl);")
+          path.write_text(source, encoding="utf-8")
+          path = Path("package.json")
+          package = json.loads(path.read_text(encoding="utf-8"))
+          package["scripts"]["build"] = "vite build && node --test tests/map-worker.test.mjs"
+          path.write_text(json.dumps(package, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+          path = Path("docs/ROUTE_MAP_FIX.md")
+          source = path.read_text(encoding="utf-8")
+          source += "\n## Vite worker deployment\n\nMapLibre 6 requires an explicit worker URL when bundled with Vite. Import maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url and call setWorkerUrl before creating any maps. The production build now runs tests/map-worker.test.mjs to verify that the worker is emitted and referenced under the correct site base path.\n\nReference: https://maplibre.org/maplibre-gl-js/docs/guides/v5-to-v6-migration-guide/\n"
+          path.write_text(source, encoding="utf-8")
+          
+          PY
+      - name: Format and type-check worker setup
+        run: |
+          pnpm exec prettier --write src/components/RouteMapCanvas.tsx package.json tests/map-worker.test.mjs
+          pnpm exec tsc --noEmit -p .cache/tsconfig.route-map.json
+          pnpm exec eslint src/components/RouteMapCanvas.tsx
+          pnpm check
+      - name: Rebuild and verify emitted worker (GREEN)
+        run: PATH_PREFIX=/run pnpm build
+      - name: Verify existing frontend behavior
+        run: node --test tests/units.test.mjs
+      - name: Save verified worker deployment fix
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/components/RouteMapCanvas.tsx package.json tests/map-worker.test.mjs docs/ROUTE_MAP_FIX.md
+          git diff --cached --check
+          git commit -m "fix: emit and configure the MapLibre worker for Vite"
+          git push origin HEAD:fix-map-worker
