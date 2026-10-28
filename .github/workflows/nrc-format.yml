@@ -22,9 +22,14 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           path = Path("scripts/tests/test_nike_import.py")
-          source = path.read_text()
-          if not source.startswith("# ruff: noqa: E402"):
-              path.write_text("# ruff: noqa: E402\n" + source)
+          source = path.read_text().replace("subprocess.run(command, capture_output=True, text=True)", "subprocess.run(command, check=False, capture_output=True, text=True)")
+          path.write_text(source)
+          path = Path("scripts/nike_data.py")
+          source = path.read_text().replace('raise ValueError("Nike dataset must be a list")', 'raise TypeError("Nike dataset must be a list")')
+          path.write_text(source)
+          path = Path("scripts/sync_nike.py")
+          source = path.read_text().replace('raise ValueError("Nike returned an invalid activity list")', 'raise TypeError("Nike returned an invalid activity list")')
+          path.write_text(source)
           PY
       - name: Format and lint changed Python files
         run: |
