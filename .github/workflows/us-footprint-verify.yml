@@ -25,7 +25,7 @@ jobs:
           import assert from 'node:assert/strict';
           import test from 'node:test';
           import { readFile } from 'node:fs/promises';
-          import * as polyline from '@mapbox/polyline';
+          import polyline from '@mapbox/polyline';
           import { US_STATES, findUSState, getActivityUSStates } from '../src/core/usStates.ts';
           test('footprint contains exactly 50 states, including Alaska and Hawaii', () => {
             assert.equal(US_STATES.length, 50);
@@ -112,7 +112,7 @@ jobs:
           assert len(states) == 50
           write('src/assets/us-states.json', json.dumps(states, separators=(',',':')) + '\n')
           write('docs/licenses/us-atlas-LICENSE.txt', resource('LICENSE'))
-          write('src/core/usStates.ts', r'''import * as polyline from '@mapbox/polyline';
+          write('src/core/usStates.ts', r'''import polyline from '@mapbox/polyline';
           import boundaries from '../assets/us-states.json' with { type: 'json' };
           import type { Activity } from './types';
           export const US_STATES = boundaries;
@@ -242,4 +242,3 @@ jobs:
           git add src/assets/us-states.json src/core/usStates.ts src/components/USMap.tsx src/components/ProfileCard.tsx src/themes/dashboard/index.tsx tests/us-states.test.mjs package.json docs/US_FOOTPRINT.md docs/licenses/us-atlas-LICENSE.txt docs/superpowers/plans/2026-10-28-us-footprint.md
           git commit -m 'feat: show GPS-derived US state footprints'
           git push origin HEAD:feat-us-footprint
-
