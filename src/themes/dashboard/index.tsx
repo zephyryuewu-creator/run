@@ -12,7 +12,6 @@ import type { Activity } from '@/types';
 import {
   useFilteredActivities,
   getAvailableYears,
-  extractProvince,
   getActivityData,
 } from '@/hooks/useActivities';
 import { useTheme } from '@/hooks/useTheme';
@@ -24,7 +23,8 @@ import { RouteMap } from '@/components/RouteMap';
 import { CalendarWidget } from '@/components/CalendarWidget';
 import { ProfileCard } from '@/components/ProfileCard';
 import { PersonalBest } from '@/components/PersonalBest';
-import { ChinaMap } from '@/components/ChinaMap';
+import { USMap } from '@/components/USMap';
+import { getActivityUSStates } from '@/core/usStates';
 
 const TracksPage = lazy(() =>
   import('@/components/TracksPage').then((module) => ({
@@ -58,7 +58,7 @@ function Dashboard() {
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(
     null
   );
-  const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
+  const [selectedState, setSelectedState] = useState<string | null>(null);
   const [page, setPage] = useState<Page>(pageFromPath);
 
   useEffect(() => {
@@ -76,8 +76,8 @@ function Dashboard() {
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
-  const selectProvince = useCallback((province: string | null) => {
-    setSelectedProvince(province);
+  const selectState = useCallback((state: string | null) => {
+    setSelectedState(state);
     setSelectedActivity(null);
   }, []);
 
@@ -86,19 +86,19 @@ function Dashboard() {
   const filtered = useFilteredActivities(activities, filter, year);
   const heatmapYear = year ?? years[0] ?? currentYear;
 
-  // Activities filtered to the selected province (for RouteMap)
-  const provinceFiltered = useMemo(() => {
-    if (!selectedProvince) return filtered;
-    return filtered.filter(
-      (a) => extractProvince(a.location_country) === selectedProvince
+  // Activities filtered to the selected state (for RouteMap)
+  const stateFiltered = useMemo(() => {
+    if (!selectedState) return filtered;
+    return filtered.filter((a) =>
+      getActivityUSStates(a).includes(selectedState)
     );
-  }, [filtered, selectedProvince]);
+  }, [filtered, selectedState]);
 
   const selectActivity = useCallback(
     (activity: Activity | null) => {
       setSelectedActivity(activity);
       if (activity) {
-        setSelectedProvince(null);
+        setSelectedState(null);
         if (window.matchMedia('(max-width: 1023px)').matches) {
           requestAnimationFrame(() =>
             routeSectionRef.current?.scrollIntoView({
@@ -189,7 +189,7 @@ function Dashboard() {
                   setYear={(value) => {
                     setYear(value);
                     setSelectedActivity(null);
-                    setSelectedProvince(null);
+                    setSelectedState(null);
                   }}
                   selectedActivity={selectedActivity}
                   onSelectActivity={selectActivity}
@@ -200,15 +200,15 @@ function Dashboard() {
               {/* Right column */}
               <div className="flex min-w-0 flex-col gap-6 overflow-hidden">
                 <ProfileCard activities={activities} filter={filter} />
-                <ChinaMap
+                <USMap
                   activities={filtered}
                   filter={filter}
-                  selectedProvince={selectedProvince}
-                  onSelectProvince={selectProvince}
+                  selectedState={selectedState}
+                  onSelectState={selectState}
                 />
                 <div ref={routeSectionRef} className="scroll-mt-28">
                   <RouteMap
-                    activities={provinceFiltered}
+                    activities={stateFiltered}
                     selectedActivity={selectedActivity}
                     dark={dark}
                     onClearSelection={() => setSelectedActivity(null)}
