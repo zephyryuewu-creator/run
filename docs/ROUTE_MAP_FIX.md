@@ -15,3 +15,9 @@ References:
 - https://github.com/CartoDB/basemap-styles
 - https://maplibre.org/maplibre-gl-js/docs/
 - https://operations.osmfoundation.org/policies/tiles/
+
+## Vite worker deployment
+
+MapLibre 6 requires an explicit worker URL when bundled with Vite. Import maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url and call setWorkerUrl before creating any maps. The production build now runs tests/map-worker.test.mjs to verify that the worker is emitted and referenced under the correct site base path.
+
+Reference: https://maplibre.org/maplibre-gl-js/docs/guides/v5-to-v6-migration-guide/
