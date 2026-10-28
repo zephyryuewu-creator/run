@@ -1,6 +1,7 @@
 """Adapt NRC metrics to the unchanged running_page Activity contract.
 Nike endpoints and metric units follow upstream run_page/nike_sync.py.
 """
+
 import math
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -9,7 +10,11 @@ from zoneinfo import ZoneInfo
 
 
 def number(value, label, positive=False):
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+    ):
         raise ValueError(label + " must be a finite number")
     if positive and value <= 0:
         raise ValueError(label + " must be positive")
@@ -70,7 +75,9 @@ def normalize_nike(activity):
     duration = number(activity.get("active_duration_ms"), "Active duration", True)
     if end <= start or end != int(end) or end > 9007199254740991:
         raise ValueError("Invalid Nike activity time range")
-    summaries = {item["metric"]: item.get("value") for item in activity.get("summaries", [])}
+    summaries = {
+        item["metric"]: item.get("value") for item in activity.get("summaries", [])
+    }
     distance = number(summaries.get("distance"), "Distance", True) * 1000
     seconds = math.floor(duration / 1000 + 0.5)
     if seconds < 1:
@@ -93,19 +100,31 @@ def normalize_nike(activity):
             raise ValueError("Steps must be a nonnegative integer")
     tags = activity.get("tags", {})
     return {
-        "run_id": int(end), "record_id": "NRC:" + activity_id,
+        "run_id": int(end),
+        "record_id": "NRC:" + activity_id,
         "nike_activity_id": activity_id,
         "name": tags.get("com.nike.name") or "NRC outdoor run",
-        "type": "Run", "subtype": "Run", "source": "nike",
+        "type": "Run",
+        "subtype": "Run",
+        "source": "nike",
         "distance": round(distance, 6),
         "moving_time": f"{seconds // 3600}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}",
         "start_date": started.isoformat(timespec="seconds").replace("+00:00", "Z"),
-        "start_date_local": local.isoformat(timespec="seconds"), "date_precision": "minute",
-        "summary_polyline": encode_polyline([(p[1], p[2]) for p in points]) if len(points) >= 2 else None,
-        "location_country": None, "average_heartrate": heart_rate,
-        "average_speed": distance / seconds, "elevation_gain": ascent,
+        "start_date_local": local.isoformat(timespec="seconds"),
+        "date_precision": "minute",
+        "summary_polyline": (
+            encode_polyline([(p[1], p[2]) for p in points])
+            if len(points) >= 2
+            else None
+        ),
+        "location_country": None,
+        "average_heartrate": heart_rate,
+        "average_speed": distance / seconds,
+        "elevation_gain": ascent,
         "running_steps": int(steps) if steps is not None else None,
-        "streak": 1, "workout_details": None, "notes": "Recorded with Nike Run Club",
+        "streak": 1,
+        "workout_details": None,
+        "notes": "Recorded with Nike Run Club",
     }
 
 
@@ -115,26 +134,41 @@ def gpx_document(activity):
         return None
     namespace = "http://www.topografix.com/GPX/1/1"
     ET.register_namespace("", namespace)
-    root = ET.Element("{" + namespace + "}gpx", version="1.1", creator="running_page NRC")
+    root = ET.Element(
+        "{" + namespace + "}gpx", version="1.1", creator="running_page NRC"
+    )
     track = ET.SubElement(root, "{" + namespace + "}trk")
-    ET.SubElement(track, "{" + namespace + "}name").text = activity.get("tags", {}).get("com.nike.name") or "NRC run"
+    ET.SubElement(track, "{" + namespace + "}name").text = (
+        activity.get("tags", {}).get("com.nike.name") or "NRC run"
+    )
     segment = ET.SubElement(track, "{" + namespace + "}trkseg")
     elevations = metric_values(activity, "elevation")
     for stamp, lat, lon in points:
-        point = ET.SubElement(segment, "{" + namespace + "}trkpt", lat=str(lat), lon=str(lon))
+        point = ET.SubElement(
+            segment, "{" + namespace + "}trkpt", lat=str(lat), lon=str(lon)
+        )
         elevation = elevations.get(stamp)
         if isinstance(elevation, (int, float)) and math.isfinite(elevation):
             ET.SubElement(point, "{" + namespace + "}ele").text = str(elevation)
-        ET.SubElement(point, "{" + namespace + "}time").text = datetime.fromtimestamp(stamp / 1000, UTC).isoformat(timespec="milliseconds").replace(".000+00:00", "Z").replace("+00:00", "Z")
+        ET.SubElement(point, "{" + namespace + "}time").text = (
+            datetime.fromtimestamp(stamp / 1000, UTC)
+            .isoformat(timespec="milliseconds")
+            .replace(".000+00:00", "Z")
+            .replace("+00:00", "Z")
+        )
     return ET.tostring(root, encoding="unicode", xml_declaration=True)
 
 
 def merge_activities(indoor, nike):
     if not isinstance(nike, list):
-        raise ValueError("Nike dataset must be a list")
+        raise TypeError("Nike dataset must be a list")
     ids, records, rows = set(), set(), []
     for row in nike:
-        if not isinstance(row, dict) or row.get("source") != "nike" or not str(row.get("record_id", "")).startswith("NRC:"):
+        if (
+            not isinstance(row, dict)
+            or row.get("source") != "nike"
+            or not str(row.get("record_id", "")).startswith("NRC:")
+        ):
             raise ValueError("Invalid cached Nike record")
         number(row.get("distance"), "Cached Nike distance", True)
         number(row.get("average_speed"), "Cached Nike speed", True)
@@ -155,7 +189,9 @@ def merge_activities(indoor, nike):
     for row in rows:
         day = datetime.fromisoformat(row["start_date_local"]).date()
         if day != previous:
-            streak = streak + 1 if previous and day == previous + timedelta(days=1) else 1
+            streak = (
+                streak + 1 if previous and day == previous + timedelta(days=1) else 1
+            )
         row["streak"] = streak
         previous = day
     return list(reversed(rows))
