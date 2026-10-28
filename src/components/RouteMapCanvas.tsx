@@ -2,10 +2,13 @@ import { METERS_PER_MILE } from '../core/units';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import mapWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import * as polyline from '@mapbox/polyline';
 import type { Activity } from '../types';
 import { useLocale } from '../hooks/useLocale';
 import './RouteMap.css';
+
+maplibregl.setWorkerUrl(mapWorkerUrl);
 
 export interface RouteMapProps {
   activities: Activity[];
