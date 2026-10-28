@@ -26,7 +26,15 @@ jobs:
           import test from 'node:test';
           import { readFile } from 'node:fs/promises';
           import polyline from '@mapbox/polyline';
-          import { US_STATES, findUSState, getActivityUSStates } from '../src/core/usStates.ts';
+          import ts from 'typescript';
+          import { createRequire } from 'node:module';
+          import { pathToFileURL } from 'node:url';
+          const source = await readFile(new URL('../src/core/usStates.ts', import.meta.url), 'utf8');
+          const shapes = await readFile(new URL('../src/assets/us-states.json', import.meta.url), 'utf8');
+          const polylineModule = pathToFileURL(createRequire(import.meta.url).resolve('@mapbox/polyline')).href;
+          const prepared = source.replace(/import boundaries from [^;]+;/, 'const boundaries = ' + shapes.trim() + ';').replace("from '@mapbox/polyline'", "from '" + polylineModule + "'");
+          const compiled = ts.transpileModule(prepared, {compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
+          const { US_STATES, findUSState, getActivityUSStates } = await import('data:text/javascript;base64,' + Buffer.from(compiled).toString('base64'));
           test('footprint contains exactly 50 states, including Alaska and Hawaii', () => {
             assert.equal(US_STATES.length, 50);
             assert.equal(new Set(US_STATES.map(s => s.id)).size, 50);
@@ -63,7 +71,7 @@ jobs:
             exit 1
           fi
           cat /tmp/us-map-red.log
-          grep -q 'ERR_MODULE_NOT_FOUND' /tmp/us-map-red.log
+          grep -Eq 'ENOENT|ERR_MODULE_NOT_FOUND' /tmp/us-map-red.log
       - name: Implement states and adapt existing footprint card
         run: |
           python3 - <<'PY'
@@ -224,6 +232,7 @@ jobs:
           - [ ] Review the diff, merge and visually verify Georgia highlight, state selection and existing routes on GitHub Pages.
           Review focus: coordinate order, dateline, holes/DC exclusion, no-GPS records, repeated and cross-state GPS points, state filtering without changing all-run totals.
           ''')
+          write('tsconfig.us-footprint-check.json', json.dumps({'extends':'./tsconfig.json','include':['src/themes/dashboard/index.tsx','src/components/USMap.tsx','src/components/ProfileCard.tsx','src/core/usStates.ts','vite-env.d.ts']}))
           print('Generated', len(states), 'state shapes; data bytes:', Path('src/assets/us-states.json').stat().st_size)
           PY
       - name: Format and verify
@@ -232,9 +241,17 @@ jobs:
         run: |
           pnpm exec prettier --write src/core/usStates.ts src/components/USMap.tsx src/components/ProfileCard.tsx src/themes/dashboard/index.tsx src/assets/us-states.json package.json tests/us-states.test.mjs
           node --test tests/us-states.test.mjs tests/units.test.mjs
-          pnpm exec tsc --noEmit
+          pnpm exec tsc --noEmit --project tsconfig.us-footprint-check.json
           pnpm exec eslint src/core/usStates.ts src/components/USMap.tsx src/components/ProfileCard.tsx src/themes/dashboard/index.tsx
           pnpm build
+      - name: Verify supported Node 20 build
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Build on Node 20
+        env:
+          PATH_PREFIX: /run
+        run: pnpm build
       - name: Commit verified feature to isolated branch
         run: |
           git config user.name 'github-actions[bot]'
