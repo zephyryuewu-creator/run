@@ -1,14 +1,14 @@
 {
   "version": "1.1",
   "input_file": "Running_Log_EN.xlsx",
-  "input_sha256": "fdb19a51db03dceb6f50551e3f549fec5081d7c8d8571079419882585ada1dee",
+  "input_sha256": "1f7ffb2ffb2befaf93b6e1f4a4e3c08cdba3f2c20e9cc5e6e4cc12b3cb6c5161",
   "timezone": "America/New_York",
   "input_distance_unit": "mi",
   "internal_distance_unit": "m",
   "display_distance_unit": "mi",
-  "record_count": 4,
-  "distance_miles": 28.284227,
-  "duration_seconds": 14438,
+  "record_count": 6,
+  "distance_miles": 33.600015,
+  "duration_seconds": 17431,
   "weekly_check_ins": [
     {
       "week_start": "2026-10-19",
@@ -18,9 +18,9 @@
     }
   ],
   "sources": {
-    "excel": 3,
-    "nike": 1
+    "excel": 4,
+    "nike": 2
   },
   "nike_input_file": "nike-activities.json",
-  "nike_input_sha256": "a70f9e2d4946bd8667e102f70ce405c426d43155917f84aeabd9ef5ef18a1d57"
+  "nike_input_sha256": "fa1e2b0df0079d2cd95614caa9658f26357aaa9fe1be1793de44cee0afd991aa"
 }
