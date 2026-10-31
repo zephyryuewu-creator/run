@@ -1,7 +1,7 @@
 # Yue Wu V1.1. Goals in miles; zero means not configured.
 mapbox_token: ''
 avatar: ''
-locale: zh
+locale: en
 theme: dark
 theme_preset: dashboard
 goals:
